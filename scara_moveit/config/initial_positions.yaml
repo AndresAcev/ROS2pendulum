@@ -1,0 +1,7 @@
+# Default initial positions for scara's ros2_control fake system
+
+initial_positions:
+  codo: 0
+  falange: 0
+  hombro: 0
+  muneca: 0

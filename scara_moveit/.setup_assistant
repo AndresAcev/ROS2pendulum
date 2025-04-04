@@ -1,0 +1,25 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: scara
+    relative_path: urdf/urdf.xacro
+  srdf:
+    relative_path: config/scara.srdf
+  package_settings:
+    author_name: Davinson CASTAÑO CANO
+    author_email: dcasta25@eafit.edu.co
+    generated_timestamp: 1743195787
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
+  modified_urdf:
+    xacros:
+      - control_xacro
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
