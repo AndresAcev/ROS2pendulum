@@ -1,0 +1,26 @@
+-- Install configuration: ""
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/launch
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/launch/view.launch.py
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/meshes
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/meshes/pendulo.STL
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/meshes/carro.STL
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/meshes/riel.STL
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/rviz
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/rviz/urdf.rviz
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/urdf
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/urdf/description.xacro
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/ament_index/resource_index/package_run_dependencies/scara
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/ament_index/resource_index/parent_prefix_path/scara
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/environment/ament_prefix_path.sh
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/environment/ament_prefix_path.dsv
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/environment/path.sh
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/environment/path.dsv
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/local_setup.bash
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/local_setup.sh
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/local_setup.zsh
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/local_setup.dsv
+-- Installing: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/package.dsv
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/ament_index/resource_index/packages/scara
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/cmake/scaraConfig.cmake
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/cmake/scaraConfig-version.cmake
+-- Up-to-date: /home/ubuntu/cpm/scaraModified/ros-jazzy-scara/install/scara/share/scara/package.xml

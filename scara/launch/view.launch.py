@@ -1,63 +1,58 @@
-from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, Shutdown
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-
-from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
-
 import os
-import xacro
 from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
+from launch_ros.actions import Node
+import xacro
 
 def generate_launch_description():
-    # Declare arguments
-    declared_arguments = []
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            "description_file",
-            default_value="urdf.xacro",
-            description="URDF/XACRO description file with the robot.",
-        )
-    )
-    
-    # Initialize Arguments
-    description_file = LaunchConfiguration("description_file")
+    # Get the package directory
+    pkg_scara = get_package_share_directory('scara')
 
-    # Get URDF via xacro
-    pkg_path = os.path.join(get_package_share_directory('scara'))
-    xacro_file = os.path.join(pkg_path,'urdf','description.xacro')
+    # Process the XACRO file
+    xacro_file = os.path.join(pkg_scara, 'urdf', 'description.xacro')
     robot_description_config = xacro.process_file(xacro_file)
-    robot_description = {"robot_description": robot_description_config.toxml()}
+    robot_description = {'robot_description': robot_description_config.toxml()}
 
-    rviz_config_file = PathJoinSubstitution(
-        [FindPackageShare('scara'), "rviz", "view.rviz"]
+    # Launch arguments
+    rviz_arg = DeclareLaunchArgument(
+        'rviz',
+        default_value='true',
+        description='Launch RViz2'
     )
 
-    joint_state_publisher_node = Node(
-        package="joint_state_publisher_gui",
-        executable="joint_state_publisher_gui",
-        name="gui"
-    )
-    robot_state_publisher_node = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        name="rsp",
-        output="both",
-        parameters=[robot_description],
-    )
-    rviz_node = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz",
-        output="log",
-        arguments=["-d", rviz_config_file],
-        on_exit=Shutdown()
+    # Robot state publisher
+    robot_state_publisher = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        name='robot_state_publisher',
+        output='both',
+        parameters=[robot_description]
     )
 
-    nodes = [
-        joint_state_publisher_node,
-        robot_state_publisher_node,
-        rviz_node,
-    ]
+    # Pendulum simulator
+    pendulum_simulator = Node(
+        package='scara',
+        executable='pendulum_simulator',
+        name='pendulum_simulator',
+        output='screen'
+    )
 
-    return LaunchDescription(declared_arguments + nodes)
+    # RViz2
+    rviz = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=['-d', os.path.join(pkg_scara, 'rviz', 'urdf.rviz')],
+        condition=IfCondition(LaunchConfiguration('rviz')),
+        parameters=[{'use_sim_time': False}]
+    )
+
+    return LaunchDescription([
+        rviz_arg,
+        robot_state_publisher,
+        pendulum_simulator,
+        rviz
+    ])

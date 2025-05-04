@@ -7,25 +7,42 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
+find_package(rclpy REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(urdf REQUIRED)
+find_package(xacro REQUIRED)
+find_package(rviz2 REQUIRED)
+find_package(robot_state_publisher REQUIRED)
+find_package(joint_state_publisher_gui REQUIRED)
 
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
-  set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
-  set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
-endif()
+# Install Python nodes
+install(PROGRAMS
+  src/pendulum_simulator.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
-# INSTALL
-install(
-  DIRECTORY launch meshes rviz urdf
+# Install launch files
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
+# Install URDF files
+install(DIRECTORY
+  urdf
+  DESTINATION share/${PROJECT_NAME}
+)
+
+# Install RViz configuration
+install(DIRECTORY
+  rviz
+  DESTINATION share/${PROJECT_NAME}
+)
+
+# Install meshes
+install(DIRECTORY
+  meshes
   DESTINATION share/${PROJECT_NAME}
 )
 

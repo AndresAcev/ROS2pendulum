@@ -27,6 +27,9 @@ colcon build
 ```bash
 ros2 launch scara view.launch.py
 ```
+```bash
+colcon build --packages-select scara && source install/setup.bash && ros2 launch scara view.launch.py
+```
 
 ## Para usar los paquetes
 
