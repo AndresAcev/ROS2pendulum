@@ -14,13 +14,6 @@ find_package(urdf REQUIRED)
 find_package(xacro REQUIRED)
 find_package(rviz2 REQUIRED)
 find_package(robot_state_publisher REQUIRED)
-find_package(joint_state_publisher_gui REQUIRED)
-
-# Install Python nodes
-install(PROGRAMS
-  src/pendulum_simulator.py
-  DESTINATION lib/${PROJECT_NAME}
-)
 
 # Install launch files
 install(DIRECTORY

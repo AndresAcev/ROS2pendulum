@@ -16,7 +16,7 @@ set(_scara_CONFIG_INCLUDED TRUE)
 
 # output package information
 if(NOT scara_FIND_QUIETLY)
-  message(STATUS "Found scara: 2025.3.27 (${scara_DIR})")
+  message(STATUS "Found scara: 0.0.0 (${scara_DIR})")
 endif()
 
 # warn when using a deprecated package
