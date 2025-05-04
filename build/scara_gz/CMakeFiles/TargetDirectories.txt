@@ -1,9 +1,0 @@
-/home/ubuntu/cpm/scaraModified/ros-jazzy-scara/build/scara_gz/CMakeFiles/uninstall.dir
-/home/ubuntu/cpm/scaraModified/ros-jazzy-scara/build/scara_gz/CMakeFiles/scara_gz_uninstall.dir
-/home/ubuntu/cpm/scaraModified/ros-jazzy-scara/build/scara_gz/CMakeFiles/test.dir
-/home/ubuntu/cpm/scaraModified/ros-jazzy-scara/build/scara_gz/CMakeFiles/edit_cache.dir
-/home/ubuntu/cpm/scaraModified/ros-jazzy-scara/build/scara_gz/CMakeFiles/rebuild_cache.dir
-/home/ubuntu/cpm/scaraModified/ros-jazzy-scara/build/scara_gz/CMakeFiles/list_install_components.dir
-/home/ubuntu/cpm/scaraModified/ros-jazzy-scara/build/scara_gz/CMakeFiles/install.dir
-/home/ubuntu/cpm/scaraModified/ros-jazzy-scara/build/scara_gz/CMakeFiles/install/local.dir
-/home/ubuntu/cpm/scaraModified/ros-jazzy-scara/build/scara_gz/CMakeFiles/install/strip.dir
