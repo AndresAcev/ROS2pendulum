@@ -32,14 +32,6 @@ def generate_launch_description():
         parameters=[robot_description]
     )
 
-    # Pendulum simulator
-    pendulum_simulator = Node(
-        package='scara',
-        executable='pendulum_simulator',
-        name='pendulum_simulator',
-        output='screen'
-    )
-
     # RViz2
     rviz = Node(
         package='rviz2',
@@ -53,6 +45,5 @@ def generate_launch_description():
     return LaunchDescription([
         rviz_arg,
         robot_state_publisher,
-        pendulum_simulator,
         rviz
     ])
