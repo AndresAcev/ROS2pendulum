@@ -31,6 +31,10 @@ ros2 launch scara view.launch.py
 colcon build --packages-select scara && source install/setup.bash && ros2 launch scara view.launch.py
 ```
 
+```bash
+colcon build --packages-select scara_gz && source install/setup.bash && ros2 launch scara_gz sim.launch.py
+```
+
 ## Para usar los paquetes
 
 1. Cambiamos los permisos de los puertos
@@ -49,6 +53,19 @@ colcon build --packages-select scara && source install/setup.bash && ros2 launch
 	
     ```bash
     ros2 launch servo_hardware_moveit_config demo.launch.py
+    ```	
+
+    ## Manually Load Controllers
+
+    1.Check if /joint_states is being published
+    ```bash
+    ros2 topic echo /joint_states
+    ```	
+
+    2. if not, After launching your simulation, in a new terminal, try:
+    ```bash
+    ros2 control list_controllers
+    ros2 control load_controller --set-state active joint_state_broadcaster
     ```	
 
 ## Github Pages
