@@ -45,7 +45,7 @@
     <child
       link="base_link" />
     <origin
-      xyz="0 0 0"
+      xyz="0 0 1"
       rpy="0 0 0" />
   </joint>
   <link
@@ -158,7 +158,7 @@
       velocity="1" />
   </joint>
   <link
-    name="pendulo">
+    name="pendulum_link">
     <inertial>
       <origin
         xyz="-1.2768E-15 -0.19577 0.020665"
@@ -198,7 +198,7 @@
     </collision>
   </link>
   <joint
-    name="pendulo"
+    name="pendulum_joint"
     type="revolute">
     <origin
       xyz="-0.020665 -0.015276 0.044"
@@ -206,7 +206,7 @@
     <parent
       link="carro" />
     <child
-      link="pendulo" />
+      link="pendulum_link" />
     <axis
       xyz="0 0 -1" />
     <limit

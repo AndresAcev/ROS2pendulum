@@ -28,8 +28,8 @@
   gz_type_name: "gz.msgs.Double"
   direction: ROS_TO_GZ
 
-- ros_topic_name: "/model/ros2Model/joint/pendulo/state"
-  gz_topic_name: "/model/ros2Model/joint/pendulo/state"
+- ros_topic_name: "/model/ros2Model/joint/pendulum_joint/state"
+  gz_topic_name: "/model/ros2Model/joint/pendulum_joint/state"
   ros_type_name: "sensor_msgs/msg/JointState"
   gz_type_name: "gz.msgs.Model"
   direction: GZ_TO_ROS 

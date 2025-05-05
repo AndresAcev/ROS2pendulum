@@ -68,7 +68,7 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        pendulo:
+        pendulum_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -95,7 +95,7 @@ Visualization Manager:
           Value: true
         carro:
           Value: true
-        pendulo:
+        pendulum_link:
           Value: true
         riel:
           Value: true
@@ -108,7 +108,7 @@ Visualization Manager:
         base_link:
           riel:
             carro:
-              pendulo:
+              pendulum_link:
                 {}
       Update Interval: 0
       Value: true

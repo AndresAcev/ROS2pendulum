@@ -20,7 +20,7 @@
             <state_interface name="velocity" />
             <state_interface name="effort" />
         </joint>
-        <joint name="pendulo">
+        <joint name="pendulum_joint">
             <state_interface name="position">
                 <param name="initial_value">0</param>
             </state_interface>
@@ -120,7 +120,7 @@
         </collision>
     </gazebo>
 
-    <gazebo reference="pendulo">
+    <gazebo reference="pendulum_link">
         <material>Gazebo/Blue</material>
         <mu1>0.2</mu1>
         <mu2>0.2</mu2>
@@ -157,7 +157,7 @@
         </physics>
     </gazebo>
 
-    <gazebo reference="pendulo">
+    <gazebo reference="pendulum_joint">
         <physics>
             <ode>
                 <implicit_spring_damper>true</implicit_spring_damper>

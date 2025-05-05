@@ -47,4 +47,4 @@ joint_state_broadcaster:
   ros__parameters:
     joints:
       - corredera
-      - pendulo
+      - pendulum_joint
