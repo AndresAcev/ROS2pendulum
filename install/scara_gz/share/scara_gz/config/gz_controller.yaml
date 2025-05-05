@@ -7,7 +7,6 @@ controller_manager:
       type: joint_trajectory_controller/JointTrajectoryController
       joints:
         - corredera
-        - pendulo_joint
       command_interfaces:
         - position
       state_interfaces:
@@ -16,11 +15,6 @@ controller_manager:
         - effort
       gains:
         corredera:
-          p: 100.0
-          d: 1.0
-          i: 1.0
-          i_clamp: 1.0
-        pendulo_joint:
           p: 100.0
           d: 1.0
           i: 1.0
@@ -35,7 +29,6 @@ joint_trajectory_controller:
   ros__parameters:
     joints:
       - corredera
-      - pendulo_joint
     interface_name: position
     command_interfaces:
       - position
@@ -49,14 +42,9 @@ joint_trajectory_controller:
         d: 1.0
         i: 1.0
         i_clamp: 1.0
-      pendulo_joint:
-        p: 100.0
-        d: 1.0
-        i: 1.0
-        i_clamp: 1.0
 
 joint_state_broadcaster:
   ros__parameters:
     joints:
       - corredera
-      - pendulo_joint
+      - pendulo
