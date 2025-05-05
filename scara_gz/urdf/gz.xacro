@@ -154,7 +154,8 @@
                 <cfm>0.1</cfm>
                 <erp>0.2</erp>
                 <mu>0.1</mu>
-                <damping>0.1</damping>
+                <damping>1.0</damping>
+                <friction>0.5</friction>
             </ode>
         </physics>
     </gazebo>
@@ -166,7 +167,8 @@
                 <cfm>0.1</cfm>
                 <erp>0.2</erp>
                 <mu>0.1</mu>
-                <damping>0.1</damping>
+                <damping>2.0</damping>
+                <friction>1.0</friction>
             </ode>
         </physics>
     </gazebo>
