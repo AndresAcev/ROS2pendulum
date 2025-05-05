@@ -78,6 +78,22 @@
         <mu2>0.2</mu2>
         <kp>1000000.0</kp>
         <kd>1.0</kd>
+        <visual>
+            <geometry>
+                <mesh>
+                    <uri>package://scara/meshes/riel.STL</uri>
+                    <scale>1 1 1</scale>
+                </mesh>
+            </geometry>
+        </visual>
+        <collision>
+            <geometry>
+                <mesh>
+                    <uri>package://scara/meshes/riel.STL</uri>
+                    <scale>1 1 1</scale>
+                </mesh>
+            </geometry>
+        </collision>
     </gazebo>
 
     <gazebo reference="carro">
@@ -86,6 +102,22 @@
         <mu2>0.2</mu2>
         <kp>1000000.0</kp>
         <kd>1.0</kd>
+        <visual>
+            <geometry>
+                <mesh>
+                    <uri>package://scara/meshes/carro.STL</uri>
+                    <scale>1 1 1</scale>
+                </mesh>
+            </geometry>
+        </visual>
+        <collision>
+            <geometry>
+                <mesh>
+                    <uri>package://scara/meshes/carro.STL</uri>
+                    <scale>1 1 1</scale>
+                </mesh>
+            </geometry>
+        </collision>
     </gazebo>
 
     <gazebo reference="pendulo">
@@ -94,6 +126,22 @@
         <mu2>0.2</mu2>
         <kp>1000000.0</kp>
         <kd>1.0</kd>
+        <visual>
+            <geometry>
+                <mesh>
+                    <uri>package://scara/meshes/pendulo.STL</uri>
+                    <scale>1 1 1</scale>
+                </mesh>
+            </geometry>
+        </visual>
+        <collision>
+            <geometry>
+                <mesh>
+                    <uri>package://scara/meshes/pendulo.STL</uri>
+                    <scale>1 1 1</scale>
+                </mesh>
+            </geometry>
+        </collision>
     </gazebo>
 
     <!-- Gazebo specific properties for joints -->

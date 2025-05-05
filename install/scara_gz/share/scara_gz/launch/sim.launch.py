@@ -26,7 +26,8 @@ def generate_launch_description():
             os.path.join(pkg_gz_sim, 'launch', 'gz_sim.launch.py')
         ),
         launch_arguments={
-            'gz_args': '-r empty.sdf'
+            'gz_args': '-r empty.sdf -v 4',
+            'on_exit_shutdown': 'true'
         }.items()
     )
 
@@ -68,7 +69,8 @@ def generate_launch_description():
             '-Y', '0.0',
             '-wait', '5'
         ],
-        output='screen'
+        output='screen',
+        parameters=[{'use_sim_time': True}]
     )
 
     # RViz2
