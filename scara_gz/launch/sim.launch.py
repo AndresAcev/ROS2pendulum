@@ -54,6 +54,14 @@ def generate_launch_description():
         }]
     )
 
+    # Controller Spawner (No deberia existir, el gz.xacro deberia correr el plugin)
+    controller_spawner = Node(
+        package='controller_manager',
+        executable='spawner',
+        arguments=['joint_trajectory_controller', 'joint_state_broadcaster'],
+        output='screen'
+    )
+
     # Spawn robot
     spawn = Node(
         package='ros_gz_sim',
@@ -88,6 +96,7 @@ def generate_launch_description():
         gazebo,
         bridge,
         robot_state_publisher,
+        controller_spawner,
         spawn,
         rviz
     ])
