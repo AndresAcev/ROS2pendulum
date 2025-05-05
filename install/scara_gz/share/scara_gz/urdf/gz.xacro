@@ -20,7 +20,7 @@
             <state_interface name="velocity" />
             <state_interface name="effort" />
         </joint>
-        <joint name="pendulo">
+        <joint name="pendulo_joint">
             <command_interface name="position">
                 <param name="min">-3.1416</param>
                 <param name="max">3.1416</param>
@@ -41,8 +41,7 @@
         </plugin>
 
         <!-- Physics parameters -->
-        <gravity>true</gravity>
-        <physics name="default_physics" default="true" type="ode">
+        <physics type="ode">
             <max_step_size>0.001</max_step_size>
             <real_time_factor>1.0</real_time_factor>
             <real_time_update_rate>1000</real_time_update_rate>
@@ -71,7 +70,6 @@
     <!-- Gazebo specific properties for links -->
     <gazebo reference="base_link">
         <material>Gazebo/Grey</material>
-        <gravity>true</gravity>
         <mu1>0.2</mu1>
         <mu2>0.2</mu2>
         <kp>1000000.0</kp>
@@ -80,7 +78,6 @@
 
     <gazebo reference="riel">
         <material>Gazebo/Blue</material>
-        <gravity>true</gravity>
         <mu1>0.2</mu1>
         <mu2>0.2</mu2>
         <kp>1000000.0</kp>
@@ -89,7 +86,6 @@
 
     <gazebo reference="carro">
         <material>Gazebo/Blue</material>
-        <gravity>true</gravity>
         <mu1>0.2</mu1>
         <mu2>0.2</mu2>
         <kp>1000000.0</kp>
@@ -98,7 +94,6 @@
 
     <gazebo reference="pendulo">
         <material>Gazebo/Blue</material>
-        <gravity>true</gravity>
         <mu1>0.2</mu1>
         <mu2>0.2</mu2>
         <kp>1000000.0</kp>
@@ -107,18 +102,26 @@
 
     <!-- Gazebo specific properties for joints -->
     <gazebo reference="corredera">
-        <implicitSpringDamper>true</implicitSpringDamper>
-        <stopCfm>0.1</stopCfm>
-        <stopErp>0.2</stopErp>
-        <friction>0.1</friction>
-        <damping>0.1</damping>
+        <physics>
+            <ode>
+                <implicit_spring_damper>true</implicit_spring_damper>
+                <cfm>0.1</cfm>
+                <erp>0.2</erp>
+                <mu>0.1</mu>
+                <damping>0.1</damping>
+            </ode>
+        </physics>
     </gazebo>
 
-    <gazebo reference="pendulo">
-        <implicitSpringDamper>true</implicitSpringDamper>
-        <stopCfm>0.1</stopCfm>
-        <stopErp>0.2</stopErp>
-        <friction>0.1</friction>
-        <damping>0.1</damping>
+    <gazebo reference="pendulo_joint">
+        <physics>
+            <ode>
+                <implicit_spring_damper>true</implicit_spring_damper>
+                <cfm>0.1</cfm>
+                <erp>0.2</erp>
+                <mu>0.1</mu>
+                <damping>0.1</damping>
+            </ode>
+        </physics>
     </gazebo>
 </robot>

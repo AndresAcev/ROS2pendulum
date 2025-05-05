@@ -22,8 +22,14 @@
   gz_type_name: "gz.msgs.Model"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "/joint_trajectory_controller/joint_trajectory"
-  gz_topic_name: "/model/ros2Model/joint/cmd_pos"
-  ros_type_name: "trajectory_msgs/msg/JointTrajectory"
+- ros_topic_name: "/model/ros2Model/joint/corredera/cmd_pos"
+  gz_topic_name: "/model/ros2Model/joint/corredera/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "/model/ros2Model/joint/pendulo_joint/cmd_pos"
+  gz_topic_name: "/model/ros2Model/joint/pendulo_joint/cmd_pos"
+  ros_type_name: "std_msgs/msg/Float64"
   gz_type_name: "gz.msgs.Double"
   direction: ROS_TO_GZ 
