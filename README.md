@@ -35,6 +35,11 @@ Lanza la simulacion en gazebo
 colcon build --packages-select scara_gz && source install/setup.bash && ros2 launch scara_gz sim.launch.py
 ```
 
+Crear el control
+```bash
+colcon build --packages-select control && source install/setup.bash && ros2 launch control state_space_controller.launch.py
+```
+
 ## Para usar los paquetes
 
 1. Cambiamos los permisos de los puertos
