@@ -2,7 +2,6 @@
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float64
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 import numpy as np
@@ -14,16 +13,16 @@ class StateSpaceController(Node):
         super().__init__('state_space_controller')
         
         # System parameters from URDF
-        self.M = 0.4015  # mass of cart (carro) from URDF
-        self.m = 0.212  # mass of pendulum (pendulum_link) from URDF
-        self.b = 0.7  # friction coefficient from Gazebo joint properties (increased for more damping)
-        self.I = 0.0017534  # moment of inertia (ixx) of pendulum from URDF
-        self.l = 0.19577  # length to pendulum center of mass from URDF (y coordinate of inertial origin)
-        self.g = 9.8   # gravity
+        self.M = 0.4015  # mass of cart
+        self.m = 0.212   # mass of pendulum
+        self.b = 0.1     # friction coefficient (from xacro)
+        self.I = 0.0017534  # moment of inertia
+        self.l = 0.19577  # length to pendulum center of mass
+        self.g = 9.8     # gravity
 
-        # Rail limits from URDF with safety margins
-        self.rail_min = -0.35  # Slightly less than URDF limit (-0.40204)
-        self.rail_max = 0.30   # Slightly less than URDF limit (0.37696)
+        # Rail limits with safety margins (from xacro)
+        self.rail_min = -0.43
+        self.rail_max = 0.43
 
         # State-space matrices
         self.A = np.array([
@@ -43,181 +42,462 @@ class StateSpaceController(Node):
         self.C = np.array([[1, 0, 0, 0],
                           [0, 0, 1, 0]])
         
-        # LQR weights - less aggressive for stability
-        Q = np.diag([10.0, 1.0, 7000.0, 1000.0])  # Slightly less aggressive for stability
-        R = np.array([[0.0001]])                  # Lower control cost for more aggressive control
+        # LQR weights - adjusted for better control
+        Q = np.diag([20.0, 1.0, 20000.0, 2000.0])  # Increased position and angle weights
+        R = np.array([[0.1]])  # Control effort weight
         
         # Compute LQR gain matrix
         self.K = self._compute_lqr_gain(Q, R)
         
-        # Initialize state vector
-        self.state = np.zeros(4)
-        self.current_position = 0.0
-        self.target_position = 0.0  # Start at center
-        self.swing_amplitude = 0.5  # Start with smaller amplitude
-        self.swing_count = 0
-        self.last_pendulum_position = 0.0
-        self.last_pendulum_velocity = 0.0
-        self.energy_threshold = 0.5  # Threshold for pendulum energy
+        # Log system parameters
+        self.get_logger().info(
+            f'System Parameters:\n'
+            f'Mass (cart): {self.M}\n'
+            f'Mass (pendulum): {self.m}\n'
+            f'Length: {self.l}\n'
+            f'Friction: {self.b}\n'
+            f'LQR Weights - Q: {Q.diagonal()}, R: {R[0,0]}'
+        )
         
         # Control parameters
-        self.start_time = time.time()
-        self.initial_disturbance = 3.0  # Even larger initial disturbance
-        self.disturbance_duration = 2.0  # Shorter duration for faster response
-        self.message_count = 0
-        self.last_publish_time = time.time()
+        self.current_position = 0.0
+        self.target_position = 0.0
+        self.last_pendulum_position = 0.0
+        self.last_pendulum_velocity = 0.0
+        self.last_direction = 1
+        
+        # Swing-up control parameters
+        self.target_energy = self.m * self.g * self.l  # Energy needed for upright position
+        self.swing_up_gain = 4.0  # Gain for energy-based swing-up
+        self.swing_up_threshold = 0.15  # Threshold for switching to LQR
+        self.is_swing_up = True  # Always start with swing-up control
+        self.upright_position = 0.0  # The linearization point (pendulum up)
+        self.max_force = 5.0  # Allow larger cart movements
+        self.pendulum_period = 2.0 * np.pi * np.sqrt(self.l / self.g)  # Natural period of pendulum
+        self.movement_time = self.pendulum_period / 3.0  # Balanced movement time
+        self.velocity_threshold = 3.0  # Increased velocity threshold
+        self.energy_threshold = 0.03  # Balanced threshold for energy addition
+        self.last_target = 0.0  # Track last target position for smooth transitions
+        self.max_velocity = 0.8  # Maximum allowed velocity for smoothing
+        self.timer_period = 0.05  # Timer period in seconds (matches create_timer)
+        self.swing_up_start_time = time.time()  # Track swing-up start time
+        self.swing_up_amplitude = 0.42  # Increased amplitude for more energy transfer (meters)
+        
+        # Transition parameters
+        self.is_catch_phase = False
+        self.catch_start_time = 0.0
+        self.catch_duration = 1.0  # Increased catch duration
+        self.catch_gain = 5.0  # Increased catch gain
+        self.last_catch_velocity = 0.0
+        self.catch_velocity_history = []
         
         # Create subscribers and publishers
         self.joint_state_sub = self.create_subscription(
             JointState,
             '/joint_states',
             self.joint_state_callback,
-            10)
+            qos_profile=rclpy.qos.QoSProfile(
+                reliability=rclpy.qos.ReliabilityPolicy.RELIABLE,
+                durability=rclpy.qos.DurabilityPolicy.VOLATILE,
+                history=rclpy.qos.HistoryPolicy.KEEP_LAST,
+                depth=10
+            )
+        )
             
-        # Create trajectory command publisher
         self.trajectory_pub = self.create_publisher(
             JointTrajectory,
             '/joint_trajectory_controller/joint_trajectory',
-            10)
+            qos_profile=rclpy.qos.QoSProfile(
+                reliability=rclpy.qos.ReliabilityPolicy.RELIABLE,
+                durability=rclpy.qos.DurabilityPolicy.VOLATILE,
+                history=rclpy.qos.HistoryPolicy.KEEP_LAST,
+                depth=10
+            )
+        )
             
         self.get_logger().info('State-space controller node initialized')
-        self.get_logger().info(f'LQR gain matrix: {self.K}')
-        self.get_logger().info(f'System parameters: M={self.M}, m={self.m}, l={self.l}')
         
-        # Print topic information
-        self.get_logger().info('Subscribing to /joint_states')
-        self.get_logger().info('Publishing to /joint_trajectory_controller/joint_trajectory')
+        # Create timer for sending commands
+        self.command_timer = self.create_timer(0.05, self.send_trajectory_command)
         
-        # Create a timer to periodically check if we're receiving joint states
-        self.timer = self.create_timer(0.1, self.check_joint_states)  # Check every 0.1 seconds instead of 1.0
-        
-        # Send initial command
-        self.send_trajectory_command()
+        # Add to __init__:
+        self.lqr_entry_time = None  # Track when LQR mode starts
 
-    def check_joint_states(self):
-        """Periodically check if we're receiving joint states."""
-        if self.message_count == 0:
-            self.get_logger().warn('No joint states received yet!')
+    def calculate_pendulum_energy(self):
+        """Calculate the total energy of the pendulum."""
+        # Kinetic energy
+        kinetic_energy = 0.5 * self.m * (self.l * self.last_pendulum_velocity)**2
+        # Potential energy (relative to upright)
+        potential_energy = self.m * self.g * self.l * (1 - np.cos(self.last_pendulum_position))
+        return kinetic_energy + potential_energy
+
+    def swing_up_control(self):
+        """Energy-based swing-up control with improved stability."""
+        # Calculate current energy
+        current_energy = self.calculate_pendulum_energy()
+        target_energy = self.m * self.g * self.l  # Energy needed for upright position
+        
+        # Calculate energy error
+        energy_error = target_energy - current_energy
+        
+        # Calculate pendulum phase
+        phase = np.arctan2(self.last_pendulum_velocity, self.last_pendulum_position)
+        
+        # Adaptive gain based on energy error
+        energy_gain = 2.0 * (1.0 + abs(energy_error) / target_energy)
+        
+        # Calculate control input using energy-based control law
+        control_input = energy_gain * np.sign(self.last_pendulum_velocity * np.cos(self.last_pendulum_position))
+        
+        # Calculate target position
+        center = (self.rail_min + self.rail_max) / 2.0
+        safety_margin = 0.05  # Increased safety margin
+        
+        # Adaptive amplitude based on energy and position
+        base_amplitude = 0.35  # Increased base amplitude
+        energy_factor = min(1.0, abs(energy_error) / target_energy)
+        position_factor = 1.0 - min(1.0, abs(self.current_position - center) / (self.rail_max - center))
+        
+        # Calculate maximum allowed amplitude
+        max_amplitude = min(0.45, (self.rail_max - self.rail_min) / 2 - safety_margin)
+        
+        # Combine factors for final amplitude
+        amplitude = base_amplitude + (max_amplitude - base_amplitude) * (energy_factor * 0.7 + position_factor * 0.3)
+        
+        # Calculate target position with smooth transitions
+        target = center + control_input * amplitude
+        
+        # Add damping when close to upright
+        if abs(self.last_pendulum_position) < np.pi/4:  # 45 degrees
+            damping_factor = 0.5 * (1.0 - abs(self.last_pendulum_position) / (np.pi/4))
+            target = center + (target - center) * (1.0 - damping_factor)
+        
+        # Ensure target stays within limits with smooth constraints
+        target = np.clip(target, self.rail_min + safety_margin, self.rail_max - safety_margin)
+        
+        # Log control parameters for debugging
+        self.get_logger().info(
+            f'Swing-up: Energy={current_energy:.3f}/{target_energy:.3f}, '
+            f'Phase={phase:.3f}, Gain={energy_gain:.3f}, '
+            f'Amplitude={amplitude:.3f}, Target={target:.3f}'
+        )
+        
+        return target
+
+    def lqr_control(self):
+        """Implement LQR control for balancing."""
+        # State vector [x, x_dot, theta, theta_dot]
+        state = np.array([
+            self.current_position,
+            0.0,  # We don't have cart velocity
+            self.last_pendulum_position,
+            self.last_pendulum_velocity
+        ])
+        
+        # Calculate control input using LQR
+        control_input = -self.K @ state
+        
+        # Calculate target position based on control input
+        target = self.current_position + control_input[0]
+        
+        # Ensure target stays within limits with safety margin
+        safety_margin = 0.05
+        target = max(self.rail_min + safety_margin, min(self.rail_max - safety_margin, target))
+        
+        # Log LQR control parameters
+        self.get_logger().info(
+            f'LQR Control:\n'
+            f'State: pos={state[0]:.3f}, vel={state[1]:.3f}, '
+            f'theta={state[2]:.3f}, theta_dot={state[3]:.3f}\n'
+            f'Control input: {control_input[0]:.3f}\n'
+            f'Target position: {target:.3f}'
+        )
+        
+        return target
+
+    def catch_control(self):
+        """Implement catch controller for transition phase."""
+        # Calculate time in catch phase
+        catch_time = time.time() - self.catch_start_time
+        
+        # Calculate target position using catch controller
+        center = (self.rail_min + self.rail_max) / 2.0
+        angle_error = self.last_pendulum_position
+        velocity_error = self.last_pendulum_velocity
+        
+        # Store velocity history
+        self.catch_velocity_history.append(abs(self.last_pendulum_velocity))
+        if len(self.catch_velocity_history) > 10:
+            self.catch_velocity_history.pop(0)
+        
+        # Calculate velocity trend
+        velocity_trend = 0
+        if len(self.catch_velocity_history) > 1:
+            velocity_trend = self.catch_velocity_history[-1] - self.catch_velocity_history[0]
+        
+        # Velocity-based control strategy
+        if abs(self.last_pendulum_velocity) > 5.0:
+            # High velocity strategy: focus on reducing velocity
+            control_input = -0.8 * self.last_pendulum_velocity
+            self.get_logger().info('Catch: High velocity strategy')
         else:
-            self.get_logger().info(f'Received {self.message_count} joint state messages')
-            
-        # Check if we're publishing commands
-        time_since_last_publish = time.time() - self.last_publish_time
-        if time_since_last_publish > 1.0:
-            self.get_logger().warn(f'No commands published in {time_since_last_publish:.1f} seconds!')
-            self.send_trajectory_command()  # Resend command if no recent publishes
+            # Normal catch strategy
+            velocity_factor = min(2.0, abs(self.last_pendulum_velocity) / 3.0)
+            trend_factor = 1.0 + (1.0 if velocity_trend > 0 else 0.5)
+            adaptive_gain = self.catch_gain * (1.0 + velocity_factor) * trend_factor
+            control_input = -adaptive_gain * (angle_error + 0.3 * velocity_error)
+            self.get_logger().info('Catch: Normal strategy')
+        
+        # Add velocity-based damping
+        damping = -0.2 * self.last_pendulum_velocity
+        
+        # Add position correction
+        position_correction = -0.5 * (self.current_position - center)
+        
+        # Combine all control terms
+        target = center + control_input + damping + position_correction
+        
+        # Ensure target stays within limits
+        safety_margin = 0.05
+        target = max(self.rail_min + safety_margin, min(self.rail_max - safety_margin, target))
+        
+        # Log catch control parameters
+        self.get_logger().info(
+            f'Catch Control:\n'
+            f'Time in catch: {catch_time:.3f}\n'
+            f'Angle error: {angle_error:.3f}\n'
+            f'Velocity error: {velocity_error:.3f}\n'
+            f'Velocity trend: {velocity_trend:.3f}\n'
+            f'Control input: {control_input:.3f}\n'
+            f'Damping: {damping:.3f}\n'
+            f'Position correction: {position_correction:.3f}\n'
+            f'Target: {target:.3f}'
+        )
+        
+        self.last_catch_velocity = abs(self.last_pendulum_velocity)
+        return target
 
     def send_trajectory_command(self):
-        """Send a trajectory command to move the cart based on pendulum position."""
+        """Send a trajectory command to move the cart."""
         try:
             # Create trajectory message
             trajectory_msg = JointTrajectory()
             trajectory_msg.joint_names = ['corredera']
             
-            # Calculate target position based on pendulum state
-            pendulum_energy = (self.last_pendulum_velocity ** 2) / 2 + self.g * self.l * (1 - np.cos(self.last_pendulum_position))
+            # Calculate distance from upright position
+            distance_from_upright = abs(self.last_pendulum_position - self.upright_position)
             
-            # Determine cart movement based on pendulum state
-            if abs(self.last_pendulum_position) < 0.1:  # Near vertical
-                # If pendulum is near vertical, move cart to help maintain balance
-                self.target_position = -0.2 * self.last_pendulum_velocity
+            # Calculate current energy and target energy
+            current_energy = self.calculate_pendulum_energy()
+            target_energy = self.m * self.g * self.l
+            
+            # Choose control strategy based on pendulum state
+            if self.is_swing_up:
+                # Reset swing-up timer if just entered swing-up mode
+                if not hasattr(self, '_was_swing_up') or not self._was_swing_up:
+                    self.swing_up_start_time = time.time()
+                    self.catch_velocity_history = []
+                self._was_swing_up = True
+                
+                # Enhanced transition conditions
+                energy_ratio = current_energy / target_energy
+                
+                # Tightened catch phase entry condition
+                catch_angle_threshold = 0.2  # radians (~11 deg)
+                cart_position_threshold = 0.1  # meters (adjust as needed)
+                center = (self.rail_min + self.rail_max) / 2.0
+                if (distance_from_upright < catch_angle_threshold and
+                    abs(self.current_position - center) < cart_position_threshold and
+                    energy_ratio > 0.95):
+                    
+                    self.is_catch_phase = True
+                    self.is_swing_up = False  # Ensure swing-up mode is exited
+                    self.catch_start_time = time.time()
+                    self.catch_velocity_history = []
+                    self.get_logger().info(
+                        f'Entering catch phase - Conditions met:\n'
+                        f'Distance from upright: {distance_from_upright:.3f} < {catch_angle_threshold}\n'
+                        f'Cart position: {self.current_position:.3f} (center: {center:.3f}, threshold: {cart_position_threshold})\n'
+                        f'Energy ratio: {energy_ratio:.3f} > 0.95'
+                    )
+                
+                # Use swing-up control
+                new_target = self.swing_up_control()
+            elif self.is_catch_phase:
+                # Check if catch phase is complete
+                catch_time = time.time() - self.catch_start_time
+                velocity_decreasing = len(self.catch_velocity_history) > 5 and self.catch_velocity_history[-1] < self.catch_velocity_history[0]
+                
+                # More lenient transition conditions
+                max_catch_duration = 2.5  # seconds
+                velocity_threshold = 4.0  # rad/s
+                velocity_decreasing_threshold = 4.0  # rad/s
+
+                # Log all relevant variables for debugging
+                self.get_logger().info(
+                    f'[CATCH PHASE DEBUG] catch_time={catch_time:.3f}, max_catch_duration={max_catch_duration}, '
+                    f'last_pendulum_velocity={self.last_pendulum_velocity:.3f}, '
+                    f'velocity_decreasing={velocity_decreasing}, '
+                    f'catch_duration={self.catch_duration}, '
+                    f'velocity_threshold={velocity_threshold}, '
+                    f'velocity_decreasing_threshold={velocity_decreasing_threshold}'
+                )
+                
+                if (catch_time > self.catch_duration and 
+                    (abs(self.last_pendulum_velocity) < velocity_threshold or  # Increased velocity threshold
+                     (velocity_decreasing and abs(self.last_pendulum_velocity) < velocity_decreasing_threshold))):
+                    self.is_catch_phase = False
+                    self.is_swing_up = False
+                    self.get_logger().info(
+                        f'[CATCH PHASE EXIT] Catch phase complete, switching to LQR control:\n'
+                        f'Final velocity: {abs(self.last_pendulum_velocity):.3f}\n'
+                        f'Velocity decreasing: {velocity_decreasing}\n'
+                        f'Time in catch: {catch_time:.3f}'
+                    )
+                elif catch_time > max_catch_duration:
+                    self.is_catch_phase = False
+                    self.is_swing_up = False
+                    self.get_logger().info(
+                        f'[CATCH PHASE EXIT] Catch phase forced to LQR due to max duration ({max_catch_duration}s) reached.\n'
+                        f'Final velocity: {abs(self.last_pendulum_velocity):.3f}\n'
+                        f'Time in catch: {catch_time:.3f}'
+                    )
+                else:
+                    # Add logging to clarify why not switching
+                    self.get_logger().info(
+                        f'[CATCH PHASE HOLD] Catch phase ongoing. Not switching to LQR yet.\n'
+                        f'Current velocity: {abs(self.last_pendulum_velocity):.3f} (threshold: {velocity_threshold})\n'
+                        f'Velocity decreasing: {velocity_decreasing}\n'
+                        f'Time in catch: {catch_time:.3f} (max: {max_catch_duration})'
+                    )
+                
+                # Use catch controller
+                new_target = self.catch_control()
             else:
-                # If pendulum is swinging, move cart to help build energy
-                # Move cart in the same direction as pendulum when it's moving away from vertical
-                # This helps build momentum instead of canceling it
-                if self.last_pendulum_velocity > 0:  # Pendulum moving right
-                    self.target_position = 0.35  # Move cart right, larger amplitude
-                else:  # Pendulum moving left
-                    self.target_position = -0.35  # Move cart left, larger amplitude
+                self._was_swing_up = False
+                # Use LQR control
+                if self.lqr_entry_time is None:
+                    self.lqr_entry_time = time.time()
+                new_target = self.lqr_control()
+                
+                # Enhanced switch back to swing-up conditions
+                min_lqr_time = 0.5  # seconds
+                lqr_time = time.time() - self.lqr_entry_time if self.lqr_entry_time else 0.0
+                if (lqr_time > min_lqr_time and (
+                    distance_from_upright > 1.57 or  # 90 degrees from upright
+                    abs(self.last_pendulum_velocity) > 8.0 or  # Higher velocity threshold
+                    current_energy < 0.5 * target_energy)):
+                    self.is_swing_up = True
+                    self.lqr_entry_time = None
+                    self.get_logger().info(
+                        f'Switching to swing-up control - Conditions met:\n'
+                        f'Distance from upright: {distance_from_upright:.3f} > 1.57\n'
+                        f'Velocity: {abs(self.last_pendulum_velocity):.3f} > 8.0\n'
+                        f'Energy ratio: {current_energy/target_energy:.3f} < 0.5\n'
+                        f'LQR time: {lqr_time:.3f} > {min_lqr_time}'
+                    )
+                elif self.is_swing_up:
+                    self.lqr_entry_time = None
             
-            # Limit target position to rail limits with safety margins
-            self.target_position = np.clip(self.target_position, self.rail_min, self.rail_max)
+            # Smooth target transition
+            max_step = self.max_velocity * self.movement_time
+            self.target_position = self.last_target + np.clip(
+                new_target - self.last_target,
+                -max_step,
+                max_step
+            )
+            self.last_target = self.target_position
             
-            # Add position margin check to prevent hitting limits
-            position_margin = 0.05  # 5cm margin from limits
-            if abs(self.target_position - self.rail_min) < position_margin:
-                self.target_position = self.rail_min + position_margin
-            elif abs(self.target_position - self.rail_max) < position_margin:
-                self.target_position = self.rail_max - position_margin
-            
-            # Create trajectory points
+            # Create trajectory points with smooth acceleration
             points = []
             
-            # Point 1: Start from current position with high acceleration
+            # Calculate movement parameters
+            total_distance = self.target_position - self.current_position
+            total_time = self.movement_time
+            
+            # Point 1: Start from current position
             point1 = JointTrajectoryPoint()
             point1.positions = [self.current_position]
             point1.velocities = [0.0]
-            point1.accelerations = [10.0]  # Lower initial acceleration
+            point1.accelerations = [0.0]
             point1.time_from_start.sec = 0
             point1.time_from_start.nanosec = 0
             points.append(point1)
             
-            # Point 2: Move to target position with very high velocity
+            # Point 2: Acceleration phase
             point2 = JointTrajectoryPoint()
-            point2.positions = [self.target_position]
-            point2.velocities = [8.0]  # Lower velocity
-            point2.accelerations = [0.0]
+            accel_time = total_time * 0.3  # 30% of time for acceleration
+            point2.positions = [self.current_position + total_distance * 0.3]
+            point2.velocities = [total_distance / total_time * 0.7]  # 70% of average velocity
+            point2.accelerations = [total_distance / (accel_time * accel_time)]  # Constant acceleration
             point2.time_from_start.sec = 0
-            point2.time_from_start.nanosec = 10000000  # 0.01 seconds for very fast movement
+            point2.time_from_start.nanosec = int(accel_time * 1e9)
             points.append(point2)
             
-            # Point 3: End with zero velocity
+            # Point 3: Deceleration phase
             point3 = JointTrajectoryPoint()
-            point3.positions = [self.target_position]
-            point3.velocities = [0.0]
-            point3.accelerations = [-10.0]  # Lower deceleration
+            decel_time = total_time * 0.3  # 30% of time for deceleration
+            point3.positions = [self.current_position + total_distance * 0.7]
+            point3.velocities = [total_distance / total_time * 0.7]  # 70% of average velocity
+            point3.accelerations = [-total_distance / (decel_time * decel_time)]  # Constant deceleration
             point3.time_from_start.sec = 0
-            point3.time_from_start.nanosec = 20000000  # 0.02 seconds total
+            point3.time_from_start.nanosec = int((total_time - decel_time) * 1e9)
             points.append(point3)
+            
+            # Point 4: End of movement
+            point4 = JointTrajectoryPoint()
+            point4.positions = [self.target_position]
+            point4.velocities = [0.0]
+            point4.accelerations = [0.0]
+            point4.time_from_start.sec = 0
+            point4.time_from_start.nanosec = int(total_time * 1e9)
+            points.append(point4)
             
             trajectory_msg.points = points
             
             # Publish the message
             self.trajectory_pub.publish(trajectory_msg)
-            self.last_publish_time = time.time()
             
             self.get_logger().info(
+                f'Mode: {"Swing-up" if self.is_swing_up else "Catch" if self.is_catch_phase else "LQR"}, '
                 f'Pendulum: pos={self.last_pendulum_position:.3f}, vel={self.last_pendulum_velocity:.3f}, '
-                f'energy={pendulum_energy:.3f}, Cart: pos={self.current_position:.3f}, target={self.target_position:.3f}, '
-                f'velocity=8.0, limits=[{self.rail_min:.3f}, {self.rail_max:.3f}]'
+                f'Distance from upright: {distance_from_upright:.3f}, '
+                f'Target Energy: {self.target_energy:.3f}, '
+                f'Cart: pos={self.current_position:.3f}, target={self.target_position:.3f}'
             )
+            
+            if self.is_swing_up or self.is_catch_phase:
+                self.lqr_entry_time = None
             
         except Exception as e:
             self.get_logger().error(f'Error sending trajectory command: {str(e)}')
 
     def _compute_lqr_gain(self, Q, R):
         """Compute the LQR gain matrix using the algebraic Riccati equation."""
-        P = linalg.solve_continuous_are(self.A, self.B, Q, R)
-        K = np.linalg.inv(R) @ self.B.T @ P
-        return K
+        try:
+            P = linalg.solve_continuous_are(self.A, self.B, Q, R)
+            K = np.linalg.inv(R) @ self.B.T @ P
+            
+            # Log LQR gain matrix
+            self.get_logger().info(f'LQR Gain Matrix: {K}')
+            
+            return K
+        except Exception as e:
+            self.get_logger().error(f'Error computing LQR gain: {str(e)}')
+            # Return a safe default gain if computation fails
+            return np.array([[1.0, 0.1, 10.0, 1.0]])
 
     def joint_state_callback(self, msg):
         """Callback function for joint state updates."""
         try:
-            self.message_count += 1
-            
             # Find indices for our joints
             corredera_idx = msg.name.index('corredera')
             pendulum_idx = msg.name.index('pendulum_joint')
             
             # Extract position and velocity from joint states
-            cart_pos = msg.position[corredera_idx]
-            cart_vel = msg.velocity[corredera_idx]
-            pendulum_pos = msg.position[pendulum_idx]
-            pendulum_vel = msg.velocity[pendulum_idx]
-            
-            # Update current position and pendulum state
-            self.current_position = cart_pos
-            self.last_pendulum_position = pendulum_pos
-            self.last_pendulum_velocity = pendulum_vel
-            
-            # Log the current state
-            if self.message_count % 10 == 0:  # Log every 10th message
-                self.get_logger().info(
-                    f'Message #{self.message_count}, '
-                    f'Cart: pos={cart_pos:.6f}, vel={cart_vel:.6f}, '
-                    f'Pendulum: pos={pendulum_pos:.6f}, vel={pendulum_vel:.6f}'
-                )
+            self.current_position = msg.position[corredera_idx]
+            self.last_pendulum_position = msg.position[pendulum_idx]
+            self.last_pendulum_velocity = msg.velocity[pendulum_idx]
             
         except Exception as e:
             self.get_logger().error(f'Error in joint state callback: {str(e)}')

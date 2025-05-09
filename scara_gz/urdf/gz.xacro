@@ -11,8 +11,8 @@
         </hardware>
         <joint name="corredera">
             <command_interface name="position">
-                <param name="min">-0.40204</param>
-                <param name="max">0.37696</param>
+                <param name="min">-0.43</param>
+                <param name="max">0.43</param>
             </command_interface>
             <state_interface name="position">
                 <param name="initial_value">0</param>
@@ -40,9 +40,9 @@
 
         <!-- Physics parameters -->
         <physics type="ode">
-            <max_step_size>0.001</max_step_size>
+            <max_step_size>0.0005</max_step_size>
             <real_time_factor>1.0</real_time_factor>
-            <real_time_update_rate>1000</real_time_update_rate>
+            <real_time_update_rate>2000</real_time_update_rate>
         </physics>
 
         <!-- Pose Publisher -->
@@ -154,8 +154,8 @@
                 <cfm>0.1</cfm>
                 <erp>0.2</erp>
                 <mu>0.1</mu>
-                <damping>1.0</damping>
-                <friction>0.5</friction>
+                <damping>0.1</damping>
+                <friction>0.1</friction>
             </ode>
         </physics>
     </gazebo>
@@ -167,8 +167,8 @@
                 <cfm>0.1</cfm>
                 <erp>0.2</erp>
                 <mu>0.1</mu>
-                <damping>2.0</damping>
-                <friction>1.0</friction>
+                <damping>0.1</damping>
+                <friction>0.1</friction>
             </ode>
         </physics>
     </gazebo>
