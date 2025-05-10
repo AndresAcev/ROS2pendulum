@@ -71,7 +71,7 @@ class StateSpaceController(Node):
         self.swing_up_gain = 4.0  # Gain for energy-based swing-up
         self.swing_up_threshold = 0.15  # Threshold for switching to LQR
         self.is_swing_up = True  # Always start with swing-up control
-        self.upright_position = 0.0  # The linearization point (pendulum up)
+        self.upright_position = np.pi  # Upright is at pi radians
         self.max_force = 5.0  # Allow larger cart movements
         self.pendulum_period = 2.0 * np.pi * np.sqrt(self.l / self.g)  # Natural period of pendulum
         self.movement_time = self.pendulum_period / 3.0  # Balanced movement time
@@ -210,17 +210,11 @@ class StateSpaceController(Node):
         ])
         
         # Calculate control input
-        control = -self.K @ state
-        
-        # Saturate control input to prevent excessive movement
         max_control_step = 0.1  # Maximum position change per cycle
-        control = np.clip(control, -max_control_step, max_control_step)
+        control = float(np.clip(-self.K @ state, -max_control_step, max_control_step))
         
         # Calculate new target position
-        new_target = self.current_position + control
-        
-        # Ensure target stays within rail limits
-        new_target = np.clip(new_target, self.rail_min, self.rail_max)
+        new_target = float(np.clip(self.current_position + control, self.rail_min, self.rail_max))
         
         # Log LQR control details
         self.get_logger().info(
