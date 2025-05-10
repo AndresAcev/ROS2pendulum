@@ -87,9 +87,17 @@ class StateSpaceController(Node):
         self.is_catch_phase = False
         self.catch_start_time = 0.0
         self.catch_duration = 1.0  # Increased catch duration
-        self.catch_gain = 5.0  # Increased catch gain
+        self.catch_gain = 12.0  # Much more aggressive catch gain
         self.last_catch_velocity = 0.0
         self.catch_velocity_history = []
+        
+        # Add cart velocity tracking
+        self.prev_position = 0.0
+        self.last_cart_velocity = 0.0
+        
+        # For catch phase entry dwell
+        self.catch_entry_dwell_time = 0.1  # seconds
+        self.catch_entry_dwell_start = None
         
         # Create subscribers and publishers
         self.joint_state_sub = self.create_subscription(
@@ -185,35 +193,44 @@ class StateSpaceController(Node):
         return target
 
     def lqr_control(self):
-        """Implement LQR control for balancing."""
-        # State vector [x, x_dot, theta, theta_dot]
+        """Implement LQR controller for stabilization."""
+        # Calculate center position
+        center = (self.rail_min + self.rail_max) / 2.0
+        
+        # Update cart velocity estimate
+        self.last_cart_velocity = (self.current_position - self.prev_position) / self.timer_period
+        self.prev_position = self.current_position
+        
+        # Create state vector with actual cart velocity
         state = np.array([
             self.current_position,
-            0.0,  # We don't have cart velocity
+            self.last_cart_velocity,  # Use actual cart velocity
             self.last_pendulum_position,
             self.last_pendulum_velocity
         ])
         
-        # Calculate control input using LQR
-        control_input = -self.K @ state
+        # Calculate control input
+        control = -self.K @ state
         
-        # Calculate target position based on control input
-        target = self.current_position + control_input[0]
+        # Saturate control input to prevent excessive movement
+        max_control_step = 0.1  # Maximum position change per cycle
+        control = np.clip(control, -max_control_step, max_control_step)
         
-        # Ensure target stays within limits with safety margin
-        safety_margin = 0.05
-        target = max(self.rail_min + safety_margin, min(self.rail_max - safety_margin, target))
+        # Calculate new target position
+        new_target = self.current_position + control
         
-        # Log LQR control parameters
+        # Ensure target stays within rail limits
+        new_target = np.clip(new_target, self.rail_min, self.rail_max)
+        
+        # Log LQR control details
         self.get_logger().info(
             f'LQR Control:\n'
-            f'State: pos={state[0]:.3f}, vel={state[1]:.3f}, '
-            f'theta={state[2]:.3f}, theta_dot={state[3]:.3f}\n'
-            f'Control input: {control_input[0]:.3f}\n'
-            f'Target position: {target:.3f}'
+            f'State: pos={state[0]:.3f}, vel={state[1]:.3f}, theta={state[2]:.3f}, theta_dot={state[3]:.3f}\n'
+            f'Control input: {control:.3f}\n'
+            f'Target position: {new_target:.3f}'
         )
         
-        return target
+        return new_target
 
     def catch_control(self):
         """Implement catch controller for transition phase."""
@@ -235,27 +252,23 @@ class StateSpaceController(Node):
         if len(self.catch_velocity_history) > 1:
             velocity_trend = self.catch_velocity_history[-1] - self.catch_velocity_history[0]
         
-        # Velocity-based control strategy
-        if abs(self.last_pendulum_velocity) > 5.0:
-            # High velocity strategy: focus on reducing velocity
-            control_input = -0.8 * self.last_pendulum_velocity
-            self.get_logger().info('Catch: High velocity strategy')
-        else:
-            # Normal catch strategy
-            velocity_factor = min(2.0, abs(self.last_pendulum_velocity) / 3.0)
-            trend_factor = 1.0 + (1.0 if velocity_trend > 0 else 0.5)
-            adaptive_gain = self.catch_gain * (1.0 + velocity_factor) * trend_factor
-            control_input = -adaptive_gain * (angle_error + 0.3 * velocity_error)
-            self.get_logger().info('Catch: Normal strategy')
+        # Bang-bang term for high velocity
+        bang_bang = 0.0
+        bang_bang_threshold = 4.0  # rad/s
+        if abs(self.last_pendulum_velocity) > bang_bang_threshold:
+            bang_bang = -np.sign(self.last_pendulum_velocity) * 0.25  # meters, adjust as needed
+        
+        # Stronger PD controller for catch phase
+        control_input = -self.catch_gain * (angle_error + 0.5 * velocity_error)
         
         # Add velocity-based damping
-        damping = -0.2 * self.last_pendulum_velocity
+        damping = -0.3 * self.last_pendulum_velocity
         
         # Add position correction
         position_correction = -0.5 * (self.current_position - center)
         
         # Combine all control terms
-        target = center + control_input + damping + position_correction
+        target = center + control_input + damping + position_correction + bang_bang
         
         # Ensure target stays within limits
         safety_margin = 0.05
@@ -270,6 +283,7 @@ class StateSpaceController(Node):
             f'Velocity trend: {velocity_trend:.3f}\n'
             f'Control input: {control_input:.3f}\n'
             f'Damping: {damping:.3f}\n'
+            f'Bang-bang: {bang_bang:.3f}\n'
             f'Position correction: {position_correction:.3f}\n'
             f'Target: {target:.3f}'
         )
@@ -303,23 +317,47 @@ class StateSpaceController(Node):
                 energy_ratio = current_energy / target_energy
                 
                 # Tightened catch phase entry condition
-                catch_angle_threshold = 0.2  # radians (~11 deg)
+                catch_angle_threshold = 0.8  # radians (~45 deg, increased)
                 cart_position_threshold = 0.1  # meters (adjust as needed)
+                catch_velocity_threshold = 8.0  # rad/s (increased)
                 center = (self.rail_min + self.rail_max) / 2.0
-                if (distance_from_upright < catch_angle_threshold and
+                catch_conditions_met = (
+                    distance_from_upright < catch_angle_threshold and
                     abs(self.current_position - center) < cart_position_threshold and
-                    energy_ratio > 0.95):
-                    
-                    self.is_catch_phase = True
-                    self.is_swing_up = False  # Ensure swing-up mode is exited
-                    self.catch_start_time = time.time()
-                    self.catch_velocity_history = []
-                    self.get_logger().info(
-                        f'Entering catch phase - Conditions met:\n'
-                        f'Distance from upright: {distance_from_upright:.3f} < {catch_angle_threshold}\n'
-                        f'Cart position: {self.current_position:.3f} (center: {center:.3f}, threshold: {cart_position_threshold})\n'
-                        f'Energy ratio: {energy_ratio:.3f} > 0.95'
-                    )
+                    energy_ratio > 0.95 and
+                    abs(self.last_pendulum_velocity) < catch_velocity_threshold
+                )
+                if catch_conditions_met:
+                    if self.catch_entry_dwell_start is None:
+                        self.catch_entry_dwell_start = time.time()
+                    elif time.time() - self.catch_entry_dwell_start > self.catch_entry_dwell_time:
+                        self.is_catch_phase = True
+                        self.is_swing_up = False  # Ensure swing-up mode is exited
+                        self.catch_start_time = time.time()
+                        self.catch_velocity_history = []
+                        self.catch_entry_dwell_start = None
+                        self.get_logger().info(
+                            f'Entering catch phase - Conditions met (with dwell):\n'
+                            f'Distance from upright: {distance_from_upright:.3f} < {catch_angle_threshold}\n'
+                            f'Cart position: {self.current_position:.3f} (center: {center:.3f}, threshold: {cart_position_threshold})\n'
+                            f'Energy ratio: {energy_ratio:.3f} > 0.95\n'
+                            f'Velocity: {self.last_pendulum_velocity:.3f} < {catch_velocity_threshold}'
+                        )
+                else:
+                    self.catch_entry_dwell_start = None
+                
+                # Log all catch entry conditions every cycle with True/False
+                angle_ok = distance_from_upright < catch_angle_threshold
+                cart_ok = abs(self.current_position - center) < cart_position_threshold
+                energy_ok = energy_ratio > 0.95
+                velocity_ok = abs(self.last_pendulum_velocity) < catch_velocity_threshold
+                self.get_logger().info(
+                    f'[CATCH ENTRY CHECK] Angle: {distance_from_upright:.3f} < {catch_angle_threshold} ({angle_ok}), '
+                    f'Cart pos: {abs(self.current_position - center):.3f} < {cart_position_threshold} ({cart_ok}), '
+                    f'Energy ratio: {energy_ratio:.3f} > 0.95 ({energy_ok}), '
+                    f'Velocity: {abs(self.last_pendulum_velocity):.3f} < {catch_velocity_threshold} ({velocity_ok}), '
+                    f'Dwell: {self.catch_entry_dwell_start is not None}'
+                )
                 
                 # Use swing-up control
                 new_target = self.swing_up_control()
@@ -329,7 +367,7 @@ class StateSpaceController(Node):
                 velocity_decreasing = len(self.catch_velocity_history) > 5 and self.catch_velocity_history[-1] < self.catch_velocity_history[0]
                 
                 # More lenient transition conditions
-                max_catch_duration = 2.5  # seconds
+                max_catch_duration = 4.0  # seconds (increased)
                 velocity_threshold = 4.0  # rad/s
                 velocity_decreasing_threshold = 4.0  # rad/s
 
@@ -383,21 +421,29 @@ class StateSpaceController(Node):
                 # Enhanced switch back to swing-up conditions
                 min_lqr_time = 0.5  # seconds
                 lqr_time = time.time() - self.lqr_entry_time if self.lqr_entry_time else 0.0
+                
+                # Tightened LQR entry conditions
+                lqr_angle_threshold = 0.2  # radians (~11 deg)
+                lqr_velocity_threshold = 2.0  # rad/s
+                center = (self.rail_min + self.rail_max) / 2.0
+                
                 if (lqr_time > min_lqr_time and (
-                    distance_from_upright > 1.57 or  # 90 degrees from upright
-                    abs(self.last_pendulum_velocity) > 8.0 or  # Higher velocity threshold
-                    current_energy < 0.5 * target_energy)):
+                    distance_from_upright > 1.57 or  # More than 90 degrees
+                    abs(self.last_pendulum_velocity) > 8.0 or  # Too fast
+                    current_energy / target_energy < 0.5 or  # Too little energy
+                    abs(self.current_position - center) > 0.1  # Too far from center
+                )):
                     self.is_swing_up = True
+                    self.is_catch_phase = False
                     self.lqr_entry_time = None
                     self.get_logger().info(
                         f'Switching to swing-up control - Conditions met:\n'
                         f'Distance from upright: {distance_from_upright:.3f} > 1.57\n'
                         f'Velocity: {abs(self.last_pendulum_velocity):.3f} > 8.0\n'
                         f'Energy ratio: {current_energy/target_energy:.3f} < 0.5\n'
-                        f'LQR time: {lqr_time:.3f} > {min_lqr_time}'
+                        f'LQR time: {lqr_time:.3f} > {min_lqr_time}\n'
+                        f'Cart position: {abs(self.current_position - center):.3f} > 0.1'
                     )
-                elif self.is_swing_up:
-                    self.lqr_entry_time = None
             
             # Smooth target transition
             max_step = self.max_velocity * self.movement_time
@@ -475,6 +521,10 @@ class StateSpaceController(Node):
     def _compute_lqr_gain(self, Q, R):
         """Compute the LQR gain matrix using the algebraic Riccati equation."""
         try:
+            # Adjust Q matrix to be less aggressive
+            Q = np.diag([1.0, 1.0, 10.0, 1.0])  # Reduced weights for position and velocity
+            R = np.array([[0.1]])  # Increased control cost
+            
             P = linalg.solve_continuous_are(self.A, self.B, Q, R)
             K = np.linalg.inv(R) @ self.B.T @ P
             
@@ -483,9 +533,8 @@ class StateSpaceController(Node):
             
             return K
         except Exception as e:
-            self.get_logger().error(f'Error computing LQR gain: {str(e)}')
-            # Return a safe default gain if computation fails
-            return np.array([[1.0, 0.1, 10.0, 1.0]])
+            self.get_logger().error(f'Error computing LQR gain: {e}')
+            return np.array([[0.0, 0.0, 0.0, 0.0]])
 
     def joint_state_callback(self, msg):
         """Callback function for joint state updates."""
